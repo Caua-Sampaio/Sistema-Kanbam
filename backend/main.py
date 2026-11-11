@@ -2,18 +2,21 @@
 import datetime as dt
 import os
 import re
+import sqlite3
+import tempfile
 from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from auth import criar_token, hash_senha, usuario_atual, verifica_senha
-from database import Base, SessionLocal, engine, get_db
+from database import Base, SessionLocal, caminho_sqlite, engine, get_db
 from models import Coluna, Contato, Lead, Lista, User, novo_id
 
 COLUNAS_PADRAO = [
@@ -24,11 +27,29 @@ COLUNAS_PADRAO = [
     ("sem-retorno", "Sem Retorno", "perdido"),
 ]
 DATA = r"^\d{4}-\d{2}-\d{2}$"
+COLUNAS_NOVAS_LEADS = [
+    ("bairro", "VARCHAR(80) DEFAULT ''"),
+    ("nicho", "VARCHAR(60) DEFAULT ''"),
+    ("origem", "VARCHAR(60) DEFAULT ''"),
+    ("excluido_em", "VARCHAR(25)"),
+]
+
+
+def migrar_banco():
+    """Adiciona colunas novas em bancos de versões anteriores, sem apagar dados (SQLite)."""
+    if engine.dialect.name != "sqlite":
+        return
+    with engine.begin() as conn:
+        existentes = {linha[1] for linha in conn.exec_driver_sql("PRAGMA table_info(leads)")}
+        for nome, tipo in COLUNAS_NOVAS_LEADS:
+            if nome not in existentes:
+                conn.exec_driver_sql(f"ALTER TABLE leads ADD COLUMN {nome} {tipo}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(engine)  # cria tabelas novas (ex.: contatos) sem apagar dados
+    Base.metadata.create_all(engine)  # cria tabelas novas sem apagar dados
+    migrar_banco()
     with SessionLocal() as db:
         if not db.scalar(select(User)):
             db.add(User(username=os.getenv("ADMIN_USER", "admin"),
@@ -39,7 +60,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="ProspecDash API", version="2.1.0", lifespan=lifespan)
+app = FastAPI(title="ProspecDash API", version="2.2.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173").split(","),
@@ -58,6 +79,9 @@ class LeadIn(BaseModel):
     telefone: str = ""
     instagram: str = ""
     status_site: StatusSite = "Sem site"
+    bairro: str = Field("", max_length=80)
+    nicho: str = Field("", max_length=60)
+    origem: str = Field("", max_length=60)
     coluna_id: str = "prospectado"
     lista_id: str | None = None
 
@@ -98,7 +122,8 @@ def chave_insta(texto: str) -> str:
 def lead_out(l: Lead) -> dict:
     return {"id": l.id, "listaId": l.lista_id, "colunaId": l.coluna_id, "empresa": l.empresa,
             "dono": l.dono, "avaliacoes": l.avaliacoes, "horario": l.horario,
-            "telefone": l.telefone, "instagram": l.instagram, "statusSite": l.status_site}
+            "telefone": l.telefone, "instagram": l.instagram, "statusSite": l.status_site,
+            "bairro": l.bairro, "nicho": l.nicho, "origem": l.origem}
 
 
 def contato_out(c: Contato) -> dict:
@@ -111,7 +136,15 @@ def campos_lead(p: LeadIn, db: Session, lista_id: str) -> dict:
         raise HTTPException(400, "Coluna inexistente")
     return {"lista_id": lista_id, "coluna_id": p.coluna_id, "empresa": p.empresa, "dono": p.dono,
             "avaliacoes": p.avaliacoes, "horario": p.horario, "telefone": p.telefone,
-            "instagram": p.instagram, "status_site": p.status_site}
+            "instagram": p.instagram, "status_site": p.status_site,
+            "bairro": p.bairro, "nicho": p.nicho, "origem": p.origem}
+
+
+def lead_ativo(db: Session, lead_id: str) -> Lead:
+    lead = db.get(Lead, lead_id)
+    if not lead or lead.excluido_em:
+        raise HTTPException(404, "Lead não encontrado")
+    return lead
 
 
 @app.post("/api/auth/login")
@@ -138,7 +171,7 @@ def dados(db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
                    for l in db.scalars(select(Lista))],
         "colunas": [{"id": c.id, "nome": c.nome, "tipo": c.tipo}
                     for c in db.scalars(select(Coluna).order_by(Coluna.ordem))],
-        "leads": [lead_out(l) for l in db.scalars(select(Lead))],
+        "leads": [lead_out(l) for l in db.scalars(select(Lead).where(Lead.excluido_em.is_(None)))],
         "contatos": [contato_out(c) for c in db.scalars(select(Contato))],
     }
 
@@ -146,9 +179,9 @@ def dados(db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
 @app.post("/api/listas", status_code=201)
 def criar_lista(payload: ListaIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
     """Importação em lote. Ignora leads já cadastrados (mesmo telefone ou Instagram)."""
-    existentes = db.scalars(select(Lead)).all()
-    tels = {so_digitos(l.telefone) for l in existentes if len(so_digitos(l.telefone)) >= 8}
-    igs = {chave_insta(l.instagram) for l in existentes if chave_insta(l.instagram)}
+    ativos = db.scalars(select(Lead).where(Lead.excluido_em.is_(None))).all()
+    tels = {so_digitos(l.telefone) for l in ativos if len(so_digitos(l.telefone)) >= 8}
+    igs = {chave_insta(l.instagram) for l in ativos if chave_insta(l.instagram)}
 
     lista = Lista(nome=payload.nome, nicho=payload.nicho, cidade=payload.cidade)
     db.add(lista)
@@ -181,9 +214,7 @@ def criar_lead(payload: LeadIn, db: Session = Depends(get_db), _: str = Depends(
 
 @app.put("/api/leads/{lead_id}")
 def atualizar_lead(lead_id: str, payload: LeadIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
-    lead = db.get(Lead, lead_id)
-    if not lead:
-        raise HTTPException(404, "Lead não encontrado")
+    lead = lead_ativo(db, lead_id)
     for campo, valor in campos_lead(payload, db, lead.lista_id).items():
         setattr(lead, campo, valor)
     db.commit()
@@ -192,9 +223,7 @@ def atualizar_lead(lead_id: str, payload: LeadIn, db: Session = Depends(get_db),
 
 @app.patch("/api/leads/{lead_id}/coluna")
 def mover_lead(lead_id: str, coluna_id: str, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
-    lead = db.get(Lead, lead_id)
-    if not lead:
-        raise HTTPException(404, "Lead não encontrado")
+    lead = lead_ativo(db, lead_id)
     if not db.get(Coluna, coluna_id):
         raise HTTPException(400, "Coluna inexistente")
     lead.coluna_id = coluna_id
@@ -204,23 +233,68 @@ def mover_lead(lead_id: str, coluna_id: str, db: Session = Depends(get_db), _: s
 
 @app.delete("/api/leads/{lead_id}", status_code=204)
 def excluir_lead(lead_id: str, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
+    """Exclusão lógica: o lead some da tela, mas pode ser restaurado."""
+    lead = lead_ativo(db, lead_id)
+    lead.excluido_em = agora()
+    db.commit()
+
+
+@app.post("/api/leads/{lead_id}/restaurar")
+def restaurar_lead(lead_id: str, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
     lead = db.get(Lead, lead_id)
-    if lead:
-        db.execute(delete(Contato).where(Contato.lead_id == lead_id))
-        db.delete(lead)
-        db.commit()
+    if not lead:
+        raise HTTPException(404, "Lead não encontrado")
+    lead.excluido_em = None
+    db.commit()
+    return lead_out(lead)
 
 
 @app.post("/api/leads/{lead_id}/contatos", status_code=201)
 def criar_contato(lead_id: str, payload: ContatoIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
-    if not db.get(Lead, lead_id):
-        raise HTTPException(404, "Lead não encontrado")
+    lead_ativo(db, lead_id)
     contato = Contato(lead_id=lead_id, criado_em=agora(), nota=payload.nota.strip(),
                       proximo_contato=payload.proximo_contato)
     db.add(contato)
     db.commit()
     db.refresh(contato)
     return contato_out(contato)
+
+
+@app.put("/api/contatos/{contato_id}")
+def editar_contato(contato_id: int, payload: ContatoIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
+    contato = db.get(Contato, contato_id)
+    if not contato:
+        raise HTTPException(404, "Contato não encontrado")
+    contato.nota = payload.nota.strip()
+    contato.proximo_contato = payload.proximo_contato
+    db.commit()
+    return contato_out(contato)
+
+
+@app.delete("/api/contatos/{contato_id}", status_code=204)
+def excluir_contato(contato_id: int, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
+    contato = db.get(Contato, contato_id)
+    if not contato:
+        raise HTTPException(404, "Contato não encontrado")
+    db.delete(contato)
+    db.commit()
+
+
+@app.get("/api/backup")
+def backup(_: str = Depends(usuario_atual)):
+    """Gera uma cópia consistente do banco SQLite para download."""
+    origem_path = caminho_sqlite()
+    if not origem_path:
+        raise HTTPException(400, "Backup disponível apenas para SQLite")
+    nome = f"prospecdash-{dt.date.today().isoformat()}.db"
+    destino = os.path.join(tempfile.gettempdir(), nome)
+    origem, copia = sqlite3.connect(origem_path), sqlite3.connect(destino)
+    try:
+        origem.backup(copia)
+    finally:
+        copia.close()
+        origem.close()
+    return FileResponse(destino, media_type="application/octet-stream", filename=nome)
 
 
 @app.post("/api/colunas", status_code=201)

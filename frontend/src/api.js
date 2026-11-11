@@ -35,6 +35,9 @@ const paraApi = (l) => ({
   telefone: l.telefone ?? '',
   instagram: l.instagram ?? '',
   status_site: l.statusSite ?? 'Sem site',
+  bairro: l.bairro ?? '',
+  nicho: l.nicho ?? '',
+  origem: l.origem ?? '',
   coluna_id: l.colunaId ?? 'prospectado',
   lista_id: l.listaId ?? null,
 });
@@ -49,7 +52,16 @@ export const api = {
     l.id ? req(`/leads/${l.id}`, { method: 'PUT', body: paraApi(l) }) : req('/leads', { method: 'POST', body: paraApi(l) }),
   moverLead: (id, colunaId) => req(`/leads/${id}/coluna?coluna_id=${encodeURIComponent(colunaId)}`, { method: 'PATCH' }),
   excluirLead: (id) => req(`/leads/${id}`, { method: 'DELETE' }),
+  restaurarLead: (id) => req(`/leads/${id}/restaurar`, { method: 'POST' }),
   criarContato: (leadId, nota, proximo) =>
     req(`/leads/${leadId}/contatos`, { method: 'POST', body: { nota, proximo_contato: proximo || null } }),
+  editarContato: (id, nota, proximo) =>
+    req(`/contatos/${id}`, { method: 'PUT', body: { nota, proximo_contato: proximo || null } }),
+  excluirContato: (id) => req(`/contatos/${id}`, { method: 'DELETE' }),
   criarColuna: (nome) => req('/colunas', { method: 'POST', body: { nome } }),
+  baixarBackup: async () => {
+    const res = await fetch(`${BASE}/backup`, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (!res.ok) throw new Error('Não foi possível gerar o backup.');
+    return res.blob();
+  },
 };

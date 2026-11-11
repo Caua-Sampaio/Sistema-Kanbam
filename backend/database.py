@@ -11,6 +11,11 @@ class Base(DeclarativeBase):
     pass
 
 
+def caminho_sqlite():
+    """Caminho do arquivo quando o banco é SQLite (usado no backup)."""
+    return URL[len("sqlite:///"):] if URL.startswith("sqlite:///") else None
+
+
 def get_db():
     db = SessionLocal()
     try:

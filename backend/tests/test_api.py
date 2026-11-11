@@ -1,0 +1,68 @@
+LEAD = lambda empresa, tel, **extra: {"empresa": empresa, "telefone": tel, **extra}
+
+
+def token(c, senha="senha-teste"):
+    r = c.post("/api/auth/login", data={"username": "admin", "password": senha})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def importar(c, h, linhas):
+    return c.post("/api/listas", json={"nome": "Lista", "nicho": "", "cidade": "", "linhas": linhas}, headers=h)
+
+
+def test_login_invalido(client):
+    r = client.post("/api/auth/login", data={"username": "admin", "password": "errada"})
+    assert r.status_code == 401
+
+
+def test_rota_protegida_exige_token(client):
+    assert client.get("/api/dados").status_code in (401, 403)
+
+
+def test_importacao_ignora_duplicados(client):
+    h = token(client)
+    r = importar(client, h, [LEAD("A", "(15) 99999-0001"), LEAD("B", "(15) 99999-0002")])
+    assert r.json()["importados"] == 2
+    r = importar(client, h, [LEAD("C", "(15) 99999-0001"), LEAD("D", "(15) 98888-0000")])
+    assert r.json()["importados"] == 1
+    assert r.json()["duplicados"] == 1
+
+
+def test_campos_novos_e_contatos(client):
+    h = token(client)
+    importar(client, h, [LEAD("Clínica X", "(15) 97777-1111", bairro="Campolim", nicho="Estética", origem="Instagram")])
+    lead = client.get("/api/dados", headers=h).json()["leads"][0]
+    assert lead["bairro"] == "Campolim" and lead["nicho"] == "Estética" and lead["origem"] == "Instagram"
+
+    r = client.post(f"/api/leads/{lead['id']}/contatos", json={"nota": "Ligou", "proximo_contato": "2030-01-10"}, headers=h)
+    assert r.status_code == 201
+    cid = r.json()["id"]
+    r = client.put(f"/api/contatos/{cid}", json={"nota": "Ligou e combinou", "proximo_contato": None}, headers=h)
+    assert r.json()["nota"] == "Ligou e combinou"
+    assert client.delete(f"/api/contatos/{cid}", headers=h).status_code == 204
+    assert client.get("/api/dados", headers=h).json()["contatos"] == []
+
+
+def test_exclusao_e_restauracao(client):
+    h = token(client)
+    importar(client, h, [LEAD("Y", "(15) 96666-2222")])
+    lead = client.get("/api/dados", headers=h).json()["leads"][0]
+    assert client.delete(f"/api/leads/{lead['id']}", headers=h).status_code == 204
+    assert client.get("/api/dados", headers=h).json()["leads"] == []
+    assert client.post(f"/api/leads/{lead['id']}/restaurar", headers=h).status_code == 200
+    assert len(client.get("/api/dados", headers=h).json()["leads"]) == 1
+
+
+def test_troca_de_senha(client):
+    h = token(client)
+    assert client.post("/api/auth/senha", json={"atual": "errada", "nova": "nova-senha"}, headers=h).status_code == 400
+    assert client.post("/api/auth/senha", json={"atual": "senha-teste", "nova": "nova-senha"}, headers=h).status_code == 204
+    assert client.post("/api/auth/login", data={"username": "admin", "password": "nova-senha"}).status_code == 200
+
+
+def test_backup_sqlite(client):
+    h = token(client)
+    r = client.get("/api/backup", headers=h)
+    assert r.status_code == 200
+    assert r.content[:16] == b"SQLite format 3\x00"

@@ -44,6 +44,10 @@ class Lead(Base):
     telefone: Mapped[str] = mapped_column(String(40), default="")
     instagram: Mapped[str] = mapped_column(String(80), default="")
     status_site: Mapped[str] = mapped_column(String(20), default="Sem site")
+    bairro: Mapped[str] = mapped_column(String(80), default="")
+    nicho: Mapped[str] = mapped_column(String(60), default="")
+    origem: Mapped[str] = mapped_column(String(60), default="")
+    excluido_em: Mapped[str | None] = mapped_column(String(25), nullable=True)  # exclusão lógica (permite desfazer)
 
 
 class Contato(Base):

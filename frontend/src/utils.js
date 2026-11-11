@@ -25,18 +25,23 @@ export function whatsappLink(telefone) {
   return `https://wa.me/${d}`;
 }
 
+export function baixarArquivo(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function baixarCsv(leads, colunas, listas) {
   const nomeCol = (id) => colunas.find((c) => c.id === id)?.nome ?? '';
   const nomeLista = (id) => listas.find((l) => l.id === id)?.nome ?? '';
-  const cab = ['Empresa', 'Dono(a)', 'Avaliações', 'Horário', 'Telefone', 'Instagram', 'Status do site', 'Coluna', 'Lista', 'Próximo retorno'];
+  const cab = ['Empresa', 'Dono(a)', 'Avaliações', 'Horário', 'Telefone', 'Instagram', 'Status do site',
+    'Bairro', 'Nicho', 'Origem', 'Coluna', 'Lista', 'Próximo retorno'];
   const linhas = leads.map((l) => [l.empresa, l.dono, l.avaliacoes, l.horario, l.telefone, l.instagram,
-    l.statusSite, nomeCol(l.colunaId), nomeLista(l.listaId), formatarData(l.retorno)]);
+    l.statusSite, l.bairro, l.nicho, l.origem, nomeCol(l.colunaId), nomeLista(l.listaId), formatarData(l.retorno)]);
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = '\uFEFF' + [cab, ...linhas].map((r) => r.map(esc).join(';')).join('\n');
-  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'leads.csv';
-  a.click();
-  URL.revokeObjectURL(url);
+  baixarArquivo(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'leads.csv');
 }
