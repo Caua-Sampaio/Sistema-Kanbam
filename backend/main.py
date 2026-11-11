@@ -1,5 +1,7 @@
 """API ProspecDash v2. Execute: uvicorn main:app --reload"""
+import datetime as dt
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -7,12 +9,12 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from auth import criar_token, hash_senha, usuario_atual, verifica_senha
 from database import Base, SessionLocal, engine, get_db
-from models import Coluna, Lead, Lista, User
+from models import Coluna, Contato, Lead, Lista, User, novo_id
 
 COLUNAS_PADRAO = [
     ("prospectado", "Prospectado", "normal"),
@@ -21,11 +23,12 @@ COLUNAS_PADRAO = [
     ("fechado", "Fechado / Cliente", "ganho"),
     ("sem-retorno", "Sem Retorno", "perdido"),
 ]
+DATA = r"^\d{4}-\d{2}-\d{2}$"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(engine)  # cria tabelas novas (ex.: contatos) sem apagar dados
     with SessionLocal() as db:
         if not db.scalar(select(User)):
             db.add(User(username=os.getenv("ADMIN_USER", "admin"),
@@ -36,7 +39,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="ProspecDash API", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="ProspecDash API", version="2.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:5173").split(","),
@@ -70,10 +73,37 @@ class ColunaIn(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
 
 
+class ContatoIn(BaseModel):
+    nota: str = Field(min_length=1, max_length=2000)
+    proximo_contato: str | None = Field(default=None, pattern=DATA)
+
+
+class SenhaIn(BaseModel):
+    atual: str = Field(min_length=1)
+    nova: str = Field(min_length=6)
+
+
+def agora() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+
+
+def so_digitos(texto: str) -> str:
+    return re.sub(r"\D", "", texto or "")
+
+
+def chave_insta(texto: str) -> str:
+    return (texto or "").strip().lower()
+
+
 def lead_out(l: Lead) -> dict:
     return {"id": l.id, "listaId": l.lista_id, "colunaId": l.coluna_id, "empresa": l.empresa,
             "dono": l.dono, "avaliacoes": l.avaliacoes, "horario": l.horario,
             "telefone": l.telefone, "instagram": l.instagram, "statusSite": l.status_site}
+
+
+def contato_out(c: Contato) -> dict:
+    return {"id": c.id, "leadId": c.lead_id, "criadoEm": c.criado_em,
+            "nota": c.nota, "proximoContato": c.proximo_contato}
 
 
 def campos_lead(p: LeadIn, db: Session, lista_id: str) -> dict:
@@ -92,6 +122,15 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     return {"access_token": criar_token(user.username), "token_type": "bearer"}
 
 
+@app.post("/api/auth/senha", status_code=204)
+def trocar_senha(payload: SenhaIn, db: Session = Depends(get_db), usuario: str = Depends(usuario_atual)):
+    user = db.scalar(select(User).where(User.username == usuario))
+    if not user or not verifica_senha(payload.atual, user.password_hash):
+        raise HTTPException(400, "Senha atual incorreta")
+    user.password_hash = hash_senha(payload.nova)
+    db.commit()
+
+
 @app.get("/api/dados")
 def dados(db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
     return {
@@ -100,19 +139,34 @@ def dados(db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
         "colunas": [{"id": c.id, "nome": c.nome, "tipo": c.tipo}
                     for c in db.scalars(select(Coluna).order_by(Coluna.ordem))],
         "leads": [lead_out(l) for l in db.scalars(select(Lead))],
+        "contatos": [contato_out(c) for c in db.scalars(select(Contato))],
     }
 
 
 @app.post("/api/listas", status_code=201)
 def criar_lista(payload: ListaIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
-    """Importação em lote: cria a lista e todos os leads numa única transação."""
+    """Importação em lote. Ignora leads já cadastrados (mesmo telefone ou Instagram)."""
+    existentes = db.scalars(select(Lead)).all()
+    tels = {so_digitos(l.telefone) for l in existentes if len(so_digitos(l.telefone)) >= 8}
+    igs = {chave_insta(l.instagram) for l in existentes if chave_insta(l.instagram)}
+
     lista = Lista(nome=payload.nome, nicho=payload.nicho, cidade=payload.cidade)
     db.add(lista)
     db.flush()
+    importados = duplicados = 0
     for linha in payload.linhas:
+        tel, ig = so_digitos(linha.telefone), chave_insta(linha.instagram)
+        if (len(tel) >= 8 and tel in tels) or (ig and ig in igs):
+            duplicados += 1
+            continue
         db.add(Lead(**campos_lead(linha, db, lista.id)))
+        importados += 1
+        if len(tel) >= 8:
+            tels.add(tel)
+        if ig:
+            igs.add(ig)
     db.commit()
-    return {"lista": {"id": lista.id, "nome": lista.nome}, "importados": len(payload.linhas)}
+    return {"lista": {"id": lista.id, "nome": lista.nome}, "importados": importados, "duplicados": duplicados}
 
 
 @app.post("/api/leads", status_code=201)
@@ -152,14 +206,26 @@ def mover_lead(lead_id: str, coluna_id: str, db: Session = Depends(get_db), _: s
 def excluir_lead(lead_id: str, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
     lead = db.get(Lead, lead_id)
     if lead:
+        db.execute(delete(Contato).where(Contato.lead_id == lead_id))
         db.delete(lead)
         db.commit()
 
 
+@app.post("/api/leads/{lead_id}/contatos", status_code=201)
+def criar_contato(lead_id: str, payload: ContatoIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
+    if not db.get(Lead, lead_id):
+        raise HTTPException(404, "Lead não encontrado")
+    contato = Contato(lead_id=lead_id, criado_em=agora(), nota=payload.nota.strip(),
+                      proximo_contato=payload.proximo_contato)
+    db.add(contato)
+    db.commit()
+    db.refresh(contato)
+    return contato_out(contato)
+
+
 @app.post("/api/colunas", status_code=201)
 def criar_coluna(payload: ColunaIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
-    from models import novo_id
-    total = len(db.scalars(select(Coluna)).all())
+    total = db.scalar(select(func.count()).select_from(Coluna))
     coluna = Coluna(id=novo_id("col"), nome=payload.nome, tipo="normal", ordem=total)
     db.add(coluna)
     db.commit()

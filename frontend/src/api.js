@@ -21,7 +21,7 @@ async function req(path, { method = 'GET', body, form } = {}) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Erro ${res.status}`);
+    throw new Error(typeof err.detail === 'string' ? err.detail : `Erro ${res.status}`);
   }
   return res.status === 204 ? null : res.json();
 }
@@ -41,6 +41,7 @@ const paraApi = (l) => ({
 
 export const api = {
   login: (username, password) => req('/auth/login', { method: 'POST', form: { username, password } }),
+  trocarSenha: (atual, nova) => req('/auth/senha', { method: 'POST', body: { atual, nova } }),
   dados: () => req('/dados'),
   criarLista: ({ nome, nicho, cidade, linhas }) =>
     req('/listas', { method: 'POST', body: { nome, nicho, cidade, linhas: linhas.map(paraApi) } }),
@@ -48,5 +49,7 @@ export const api = {
     l.id ? req(`/leads/${l.id}`, { method: 'PUT', body: paraApi(l) }) : req('/leads', { method: 'POST', body: paraApi(l) }),
   moverLead: (id, colunaId) => req(`/leads/${id}/coluna?coluna_id=${encodeURIComponent(colunaId)}`, { method: 'PATCH' }),
   excluirLead: (id) => req(`/leads/${id}`, { method: 'DELETE' }),
+  criarContato: (leadId, nota, proximo) =>
+    req(`/leads/${leadId}/contatos`, { method: 'POST', body: { nota, proximo_contato: proximo || null } }),
   criarColuna: (nome) => req('/colunas', { method: 'POST', body: { nome } }),
 };

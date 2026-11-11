@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
@@ -44,3 +44,13 @@ class Lead(Base):
     telefone: Mapped[str] = mapped_column(String(40), default="")
     instagram: Mapped[str] = mapped_column(String(80), default="")
     status_site: Mapped[str] = mapped_column(String(20), default="Sem site")
+
+
+class Contato(Base):
+    """Histórico de contatos de um lead, com data opcional de próximo retorno."""
+    __tablename__ = "contatos"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    lead_id: Mapped[str] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"))
+    criado_em: Mapped[str] = mapped_column(String(25))
+    nota: Mapped[str] = mapped_column(Text)
+    proximo_contato: Mapped[str | None] = mapped_column(String(10), nullable=True)
