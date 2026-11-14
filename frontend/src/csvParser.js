@@ -5,6 +5,10 @@ const MODELO =
 
 const STATUS = ['Sem site', 'Possui site', 'Em construção'];
 
+const PLACEHOLDERS = ['não encontrado', 'nao encontrado', 'não informado', 'nao informado', 'n/a', '-', '—'];
+// Textos de preenchimento viram campo vazio
+export const limpo = (t) => (PLACEHOLDERS.includes((t || '').trim().toLowerCase()) ? '' : (t || '').trim());
+
 const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // Aceita variações de nome de coluna (com ou sem acento, "Dono(a)", "Status do site", etc.)
@@ -53,7 +57,7 @@ export function csvParaLeads(texto) {
   for (const campo of Object.keys(ALIAS)) pos[campo] = chaves.findIndex((k) => ALIAS[campo].includes(k));
   if (pos.empresa < 0) throw new Error('Não encontrei a coluna "Empresa" no arquivo.');
 
-  const valor = (row, campo) => (pos[campo] >= 0 ? (row[pos[campo]] || '').trim() : '');
+  const valor = (row, campo) => (pos[campo] >= 0 ? limpo(row[pos[campo]]) : '');
 
   return corpo
     .map((row) => {

@@ -66,3 +66,11 @@ def test_backup_sqlite(client):
     r = client.get("/api/backup", headers=h)
     assert r.status_code == 200
     assert r.content[:16] == b"SQLite format 3\x00"
+
+
+def test_placeholder_nao_gera_duplicado(client):
+    h = token(client)
+    linhas = [LEAD(f"Empresa {i}", f"(15) 9{i:04d}-0000", instagram="não encontrado") for i in range(5)]
+    r = importar(client, h, linhas)
+    assert r.json()["importados"] == 5
+    assert r.json()["duplicados"] == 0

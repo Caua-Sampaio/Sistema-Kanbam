@@ -36,3 +36,10 @@ test('parsearLinhas lê o formato colado com ponto e vírgula', () => {
   assert.equal(l.empresa, 'Loja');
   assert.equal(l.avaliacoes, 5);
 });
+
+test('csvParaLeads trata "não encontrado" como campo vazio', () => {
+  const [l] = csvParaLeads('Empresa;Dono(a);Telefone;Instagram\nClínica;não encontrado;(15) 1;não encontrado\n');
+  assert.equal(l.dono, '');
+  assert.equal(l.instagram, '');
+  assert.equal(l.telefone, '(15) 1');
+});

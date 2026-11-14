@@ -111,12 +111,21 @@ def agora() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
+PLACEHOLDERS = {"não encontrado", "nao encontrado", "não informado", "nao informado", "n/a", "-", "—"}
+
+
+def limpo(texto: str) -> str:
+    """Trata textos de preenchimento (ex.: 'não encontrado') como campo vazio."""
+    t = (texto or "").strip()
+    return "" if t.lower() in PLACEHOLDERS else t
+
+
 def so_digitos(texto: str) -> str:
     return re.sub(r"\D", "", texto or "")
 
 
 def chave_insta(texto: str) -> str:
-    return (texto or "").strip().lower()
+    return limpo(texto).lower()
 
 
 def lead_out(l: Lead) -> dict:
@@ -134,10 +143,10 @@ def contato_out(c: Contato) -> dict:
 def campos_lead(p: LeadIn, db: Session, lista_id: str) -> dict:
     if not db.get(Coluna, p.coluna_id):
         raise HTTPException(400, "Coluna inexistente")
-    return {"lista_id": lista_id, "coluna_id": p.coluna_id, "empresa": p.empresa, "dono": p.dono,
-            "avaliacoes": p.avaliacoes, "horario": p.horario, "telefone": p.telefone,
-            "instagram": p.instagram, "status_site": p.status_site,
-            "bairro": p.bairro, "nicho": p.nicho, "origem": p.origem}
+    return {"lista_id": lista_id, "coluna_id": p.coluna_id, "empresa": p.empresa, "dono": limpo(p.dono),
+            "avaliacoes": p.avaliacoes, "horario": limpo(p.horario), "telefone": limpo(p.telefone),
+            "instagram": limpo(p.instagram), "status_site": p.status_site,
+            "bairro": limpo(p.bairro), "nicho": limpo(p.nicho), "origem": limpo(p.origem)}
 
 
 def lead_ativo(db: Session, lead_id: str) -> Lead:
