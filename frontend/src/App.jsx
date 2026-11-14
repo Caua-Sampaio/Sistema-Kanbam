@@ -34,6 +34,8 @@ export default function App() {
   if (!logado) return <Login onLogin={() => setLogado(true)} />;
 
   const executar = (acao) => acao().then(carregar).catch((e) => setErro(e.message));
+  // Atualiza só o que mudou, usando a resposta do servidor (sem recarregar o banco inteiro)
+  const aplicar = (acao, atualizar) => acao().then(atualizar).catch((e) => setErro(e.message));
   const sair = () => { setToken(null); setLogado(false); };
 
   const hojeStr = hoje();
@@ -54,24 +56,25 @@ export default function App() {
 
   const moverLead = (id, colunaId) => {
     setDados((d) => ({ ...d, leads: d.leads.map((l) => (l.id === id ? { ...l, colunaId } : l)) }));
-    executar(() => api.moverLead(id, colunaId));
+    aplicar(() => api.moverLead(id, colunaId), () => {});
   };
 
   const excluirLead = (id) => {
     if (!window.confirm('Excluir este lead?')) return;
     setDetalhe(null);
-    executar(() => api.excluirLead(id));
-    setToast({ texto: 'Lead excluído', acaoTexto: 'Desfazer', onAcao: () => executar(() => api.restaurarLead(id)) });
+    aplicar(() => api.excluirLead(id), () => setDados((d) => ({ ...d, leads: d.leads.filter((l) => l.id !== id) })));
+    setToast({ texto: 'Lead excluído', acaoTexto: 'Desfazer',
+      onAcao: () => aplicar(() => api.restaurarLead(id), (lead) => setDados((d) => ({ ...d, leads: [...d.leads, lead] }))) });
   };
 
   const excluirContato = (id) => {
     if (!window.confirm('Excluir este registro de contato?')) return;
-    executar(() => api.excluirContato(id));
+    aplicar(() => api.excluirContato(id), () => setDados((d) => ({ ...d, contatos: d.contatos.filter((c) => c.id !== id) })));
   };
 
   const novaColuna = () => {
     const nome = window.prompt('Nome da nova coluna:');
-    if (nome?.trim()) executar(() => api.criarColuna(nome.trim()));
+    if (nome?.trim()) aplicar(() => api.criarColuna(nome.trim()), (c) => setDados((d) => ({ ...d, colunas: [...d.colunas, c] })));
   };
 
   const importar = async (p) => {
@@ -135,8 +138,8 @@ export default function App() {
 
       {detalheLead && (
         <DetalheModal lead={detalheLead} contatos={dados.contatos} listas={dados.listas} colunas={dados.colunas}
-          onNota={(nota, proximo) => executar(() => api.criarContato(detalheLead.id, nota, proximo))}
-          onEditarContato={(id, nota, proximo) => executar(() => api.editarContato(id, nota, proximo))}
+          onNota={(nota, proximo) => aplicar(() => api.criarContato(detalheLead.id, nota, proximo), (c) => setDados((d) => ({ ...d, contatos: [...d.contatos, c] })))}
+          onEditarContato={(id, nota, proximo) => aplicar(() => api.editarContato(id, nota, proximo), (c) => setDados((d) => ({ ...d, contatos: d.contatos.map((x) => (x.id === c.id ? c : x)) })))}
           onExcluirContato={excluirContato}
           onMover={moverLead}
           onEditar={() => { setEdicao(detalheLead); setDetalhe(null); }}
@@ -147,7 +150,7 @@ export default function App() {
       {edicao && (
         <LeadModal lead={edicao} listas={dados.listas} colunas={dados.colunas}
           listaPadrao={filtros.listaId !== 'todas' ? filtros.listaId : dados.listas[0]?.id}
-          onSalvar={(l) => executar(async () => { await api.salvarLead(l); setEdicao(null); })}
+          onSalvar={(l) => aplicar(async () => { const salvo = await api.salvarLead(l); setEdicao(null); return salvo; }, (lead) => setDados((d) => ({ ...d, leads: d.leads.some((x) => x.id === lead.id) ? d.leads.map((x) => (x.id === lead.id ? lead : x)) : [...d.leads, lead] })))}
           onFechar={() => setEdicao(null)} />
       )}
 

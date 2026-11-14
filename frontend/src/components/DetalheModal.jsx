@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Shell from './Shell';
-import { formatarData, whatsappLink } from '../utils';
+import { formatarData, whatsappComMensagem } from '../utils';
 
 const INP = 'w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none';
 const BTN = 'rounded-xl bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50';
@@ -47,7 +47,7 @@ function ContatoItem({ c, onSalvar, onExcluir }) {
 export default function DetalheModal({ lead, contatos, listas, colunas, onNota, onEditarContato, onExcluirContato, onMover, onEditar, onExcluir, onFechar }) {
   const [nota, setNota] = useState('');
   const [proximo, setProximo] = useState('');
-  const wa = whatsappLink(lead.telefone);
+  const wa = whatsappComMensagem(lead);
   const lista = listas.find((l) => l.id === lead.listaId)?.nome ?? '—';
   const historico = contatos
     .filter((c) => c.leadId === lead.id)

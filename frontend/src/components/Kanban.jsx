@@ -1,4 +1,4 @@
-import { formatarData, hoje, whatsappLink } from '../utils';
+import { formatarData, hoje, whatsappComMensagem } from '../utils';
 
 const CORES = {
   'Sem site': 'bg-red-500/15 text-red-300',
@@ -26,7 +26,7 @@ export default function Kanban({ colunas, leads, listas, onMover, onDetalhe, onE
             <div className="flex flex-col gap-3">
               {cards.map((l) => {
                 const atrasado = l.retorno && l.retorno <= hojeStr;
-                const wa = whatsappLink(l.telefone);
+                const wa = whatsappComMensagem(l);
                 return (
                   <article key={l.id} draggable
                     onDragStart={(e) => e.dataTransfer.setData('text/plain', l.id)}

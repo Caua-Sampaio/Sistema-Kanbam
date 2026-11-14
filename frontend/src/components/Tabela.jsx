@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatarData, hoje, whatsappLink } from '../utils';
+import { formatarData, hoje, whatsappComMensagem } from '../utils';
 
 const TAMANHO = 50;
 const TITULOS = ['Empresa', 'Dono(a)', 'Telefone', 'Instagram', '★', 'Bairro', 'Nicho', 'Origem', 'Status do site', 'Coluna', 'Lista', 'Retorno'];
@@ -22,7 +22,7 @@ export default function Tabela({ leads, listas, colunas, onDetalhe }) {
           </thead>
           <tbody className="divide-y divide-slate-800 text-slate-300">
             {visiveis.map((l) => {
-              const wa = whatsappLink(l.telefone);
+              const wa = whatsappComMensagem(l);
               const atrasado = l.retorno && l.retorno <= hojeStr;
               return (
                 <tr key={l.id} onClick={() => onDetalhe(l)} className="cursor-pointer hover:bg-slate-800/40">

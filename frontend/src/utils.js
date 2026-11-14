@@ -45,3 +45,22 @@ export function baixarCsv(leads, colunas, listas) {
   const csv = '\uFEFF' + [cab, ...linhas].map((r) => r.map(esc).join(';')).join('\n');
   baixarArquivo(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'leads.csv');
 }
+
+// Nome usado nas mensagens de WhatsApp. Troque aqui se for enviar com outro nome.
+export const REMETENTE = 'Cauã';
+
+// Mensagem curta, pessoal e com uma pergunta de baixa pressão (o que converte em resposta)
+export function mensagemWhatsapp(lead, remetente = REMETENTE) {
+  const saudacao = lead.dono ? `Oi, ${lead.dono}! ` : 'Oi, tudo bem? ';
+  const aval = lead.avaliacoes > 0 ? ` com ${lead.avaliacoes} avaliações de clientes` : '';
+  return `${saudacao}Meu nome é ${remetente}. Vi o perfil da ${lead.empresa} no Google Maps${aval}, ` +
+    `e a reputação de vocês é muito boa. Percebi que ainda não tem um site próprio. ` +
+    `Eu crio sites para clínicas da região, com agendamento pelo WhatsApp e aparecendo no Google, ` +
+    `para trazer mais clientes. Posso te mostrar um exemplo rápido, sem compromisso?`;
+}
+
+// Link wa.me já com a mensagem preenchida; abre direto no app do WhatsApp
+export function whatsappComMensagem(lead) {
+  const base = whatsappLink(lead.telefone);
+  return base ? `${base}?text=${encodeURIComponent(mensagemWhatsapp(lead))}` : null;
+}
