@@ -31,6 +31,7 @@ COLUNAS_NOVAS_LEADS = [
     ("bairro", "VARCHAR(80) DEFAULT ''"),
     ("nicho", "VARCHAR(60) DEFAULT ''"),
     ("origem", "VARCHAR(60) DEFAULT ''"),
+    ("site", "VARCHAR(200) DEFAULT ''"),
     ("excluido_em", "VARCHAR(25)"),
 ]
 
@@ -82,6 +83,7 @@ class LeadIn(BaseModel):
     bairro: str = Field("", max_length=80)
     nicho: str = Field("", max_length=60)
     origem: str = Field("", max_length=60)
+    site: str = Field("", max_length=200)
     coluna_id: str = "prospectado"
     lista_id: str | None = None
 
@@ -95,6 +97,10 @@ class ListaIn(BaseModel):
 
 class ColunaIn(BaseModel):
     nome: str = Field(min_length=1, max_length=60)
+
+
+class IdsIn(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=1000)
 
 
 class ContatoIn(BaseModel):
@@ -132,7 +138,7 @@ def lead_out(l: Lead) -> dict:
     return {"id": l.id, "listaId": l.lista_id, "colunaId": l.coluna_id, "empresa": l.empresa,
             "dono": l.dono, "avaliacoes": l.avaliacoes, "horario": l.horario,
             "telefone": l.telefone, "instagram": l.instagram, "statusSite": l.status_site,
-            "bairro": l.bairro, "nicho": l.nicho, "origem": l.origem}
+            "bairro": l.bairro, "nicho": l.nicho, "origem": l.origem, "site": l.site}
 
 
 def contato_out(c: Contato) -> dict:
@@ -146,7 +152,7 @@ def campos_lead(p: LeadIn, db: Session, lista_id: str) -> dict:
     return {"lista_id": lista_id, "coluna_id": p.coluna_id, "empresa": p.empresa, "dono": limpo(p.dono),
             "avaliacoes": p.avaliacoes, "horario": limpo(p.horario), "telefone": limpo(p.telefone),
             "instagram": limpo(p.instagram), "status_site": p.status_site,
-            "bairro": limpo(p.bairro), "nicho": limpo(p.nicho), "origem": limpo(p.origem)}
+            "bairro": limpo(p.bairro), "nicho": limpo(p.nicho), "origem": limpo(p.origem), "site": limpo(p.site)}
 
 
 def lead_ativo(db: Session, lead_id: str) -> Lead:
@@ -304,6 +310,25 @@ def backup(_: str = Depends(usuario_atual)):
         copia.close()
         origem.close()
     return FileResponse(destino, media_type="application/octet-stream", filename=nome)
+
+
+@app.post("/api/leads/excluir-em-lote")
+def excluir_em_lote(payload: IdsIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
+    """Exclusão lógica de vários leads de uma vez."""
+    leads = db.scalars(select(Lead).where(Lead.id.in_(payload.ids), Lead.excluido_em.is_(None))).all()
+    for lead in leads:
+        lead.excluido_em = agora()
+    db.commit()
+    return {"excluidos": len(leads)}
+
+
+@app.post("/api/leads/restaurar-em-lote")
+def restaurar_em_lote(payload: IdsIn, db: Session = Depends(get_db), _: str = Depends(usuario_atual)):
+    leads = db.scalars(select(Lead).where(Lead.id.in_(payload.ids), Lead.excluido_em.isnot(None))).all()
+    for lead in leads:
+        lead.excluido_em = None
+    db.commit()
+    return [lead_out(l) for l in leads]
 
 
 @app.post("/api/colunas", status_code=201)

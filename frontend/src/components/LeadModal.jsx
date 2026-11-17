@@ -10,13 +10,13 @@ const STATUS = ['Sem site', 'Possui site', 'Em construção'];
 export default function LeadModal({ lead, listas, colunas, listaPadrao, onSalvar, onFechar }) {
   const [f, setF] = useState({
     empresa: '', dono: '', avaliacoes: 0, horario: '', telefone: '', instagram: '',
-    bairro: '', nicho: '', origem: '', statusSite: 'Sem site',
+    bairro: '', nicho: '', origem: '', site: '', statusSite: 'Sem site',
     colunaId: colunas[0]?.id, listaId: listaPadrao, ...lead,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const campos = [['empresa', 'Empresa'], ['dono', 'Dono(a)'], ['avaliacoes', 'Avaliações', 'number'],
     ['horario', 'Horário'], ['telefone', 'Telefone'], ['instagram', 'Instagram'],
-    ['bairro', 'Bairro'], ['nicho', 'Nicho'], ['origem', 'Origem (de onde veio)']];
+    ['bairro', 'Bairro'], ['nicho', 'Nicho'], ['origem', 'Origem (de onde veio)'], ['site', 'Link do site (se tiver)']];
 
   return (
     <Shell titulo={lead.id ? 'Editar lead' : 'Novo lead'} onFechar={onFechar}>

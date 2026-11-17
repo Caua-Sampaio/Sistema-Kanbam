@@ -67,6 +67,11 @@ export default function DetalheModal({ lead, contatos, listas, colunas, onNota, 
         <p><span className="text-slate-300">Telefone:</span> {lead.telefone || '—'} · <span className="text-slate-300">Instagram:</span> {lead.instagram || '—'}</p>
         <p><span className="text-slate-300">Avaliações:</span> {lead.avaliacoes} · <span className="text-slate-300">Site:</span> {lead.statusSite}</p>
         <p><span className="text-slate-300">Bairro:</span> {lead.bairro || '—'} · <span className="text-slate-300">Nicho:</span> {lead.nicho || '—'} · <span className="text-slate-300">Origem:</span> {lead.origem || '—'}</p>
+        {lead.site && (
+          <p><span className="text-slate-300">Site:</span>{" "}
+            <a href={lead.site.startsWith("http") ? lead.site : "https://" + lead.site} target="_blank" rel="noreferrer"
+              className="text-indigo-400 hover:underline">{lead.site}</a></p>
+        )}
         <p><span className="text-slate-300">Lista:</span> {lista}</p>
         {lead.retorno && <p className="text-sky-400">Próximo retorno: {formatarData(lead.retorno)}</p>}
       </div>

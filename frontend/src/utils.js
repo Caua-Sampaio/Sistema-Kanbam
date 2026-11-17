@@ -38,29 +38,62 @@ export function baixarCsv(leads, colunas, listas) {
   const nomeCol = (id) => colunas.find((c) => c.id === id)?.nome ?? '';
   const nomeLista = (id) => listas.find((l) => l.id === id)?.nome ?? '';
   const cab = ['Empresa', 'Dono(a)', 'Avaliações', 'Horário', 'Telefone', 'Instagram', 'Status do site',
-    'Bairro', 'Nicho', 'Origem', 'Coluna', 'Lista', 'Próximo retorno'];
+    'Bairro', 'Nicho', 'Origem', 'Site', 'Coluna', 'Lista', 'Próximo retorno'];
   const linhas = leads.map((l) => [l.empresa, l.dono, l.avaliacoes, l.horario, l.telefone, l.instagram,
-    l.statusSite, l.bairro, l.nicho, l.origem, nomeCol(l.colunaId), nomeLista(l.listaId), formatarData(l.retorno)]);
+    l.statusSite, l.bairro, l.nicho, l.origem, l.site, nomeCol(l.colunaId), nomeLista(l.listaId), formatarData(l.retorno)]);
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = '\uFEFF' + [cab, ...linhas].map((r) => r.map(esc).join(';')).join('\n');
   baixarArquivo(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'leads.csv');
 }
 
-// Nome usado nas mensagens de WhatsApp. Troque aqui se for enviar com outro nome.
-export const REMETENTE = 'Cauã';
+// Mensagem enviada pelo botão de WhatsApp. Edite aqui para mudar a abordagem.
+export const MENSAGEM_WHATSAPP = `Olá! Tudo bem?
 
-// Mensagem curta, pessoal e com uma pergunta de baixa pressão (o que converte em resposta)
-export function mensagemWhatsapp(lead, remetente = REMETENTE) {
-  const saudacao = lead.dono ? `Oi, ${lead.dono}! ` : 'Oi, tudo bem? ';
-  const aval = lead.avaliacoes > 0 ? ` com ${lead.avaliacoes} avaliações de clientes` : '';
-  return `${saudacao}Meu nome é ${remetente}. Vi o perfil da ${lead.empresa} no Google Maps${aval}, ` +
-    `e a reputação de vocês é muito boa. Percebi que ainda não tem um site próprio. ` +
-    `Eu crio sites para clínicas da região, com agendamento pelo WhatsApp e aparecendo no Google, ` +
-    `para trazer mais clientes. Posso te mostrar um exemplo rápido, sem compromisso?`;
+Estava olhando o seu negócio e notei uma coisa que pode estar custando clientes para você. Quando alguém procura clínicas de estética na internet e não encontra um site que transmita confiança, a escolha costuma ir para quem aparece melhor.
+
+Eu crio sites que fazem o cliente chamar no WhatsApp sem precisar pensar duas vezes. Página pensada para celular, contato em um toque e uma cara profissional que combina com a sua marca.
+
+Preparei uma ideia inicial de como o site da clínica poderia ficar. Quer que eu te mostre?`;
+
+// Usada quando o lead já tem site. O placeholder {site} recebe o link cadastrado.
+export const MENSAGEM_COM_SITE = `Olá! Tudo bem?
+
+Vi o site de vocês ({site}) e gostei da proposta. Trabalho com sites para clínicas de estética e percebi algumas oportunidades para ele converter mais visitas em contatos pelo WhatsApp, como um botão de contato em destaque e uma versão mais rápida no celular.
+
+Se fizer sentido, posso te mostrar uma sugestão de melhoria, sem compromisso?`;
+
+export function mensagemWhatsapp(lead = {}) {
+  if (lead.site) return MENSAGEM_COM_SITE.replace('{site}', lead.site);
+  return MENSAGEM_WHATSAPP;
 }
 
 // Link wa.me já com a mensagem preenchida; abre direto no app do WhatsApp
 export function whatsappComMensagem(lead) {
   const base = whatsappLink(lead.telefone);
   return base ? `${base}?text=${encodeURIComponent(mensagemWhatsapp(lead))}` : null;
+}
+
+// Chaves usadas para reconhecer um contato já cadastrado (mesma regra do back-end)
+const soDigitos = (t) => (t || '').replace(/\D/g, '');
+export function chavesDeContato(lead) {
+  const tel = soDigitos(lead.telefone);
+  const ig = (lead.instagram || '').trim().toLowerCase();
+  return [tel.length >= 8 ? 'tel:' + tel : null, ig ? 'ig:' + ig : null].filter(Boolean);
+}
+
+// Separa os leads novos dos que já existem no sistema ou se repetem no próprio arquivo
+export function separarDuplicados(novosLeads, existentes) {
+  const usados = new Set(existentes.flatMap(chavesDeContato));
+  const novos = [];
+  const repetidos = [];
+  for (const lead of novosLeads) {
+    const chaves = chavesDeContato(lead);
+    if (chaves.some((c) => usados.has(c))) {
+      repetidos.push(lead);
+    } else {
+      novos.push(lead);
+      chaves.forEach((c) => usados.add(c));
+    }
+  }
+  return { novos, repetidos };
 }

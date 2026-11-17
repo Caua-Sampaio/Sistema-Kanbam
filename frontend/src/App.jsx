@@ -10,6 +10,7 @@ import LeadModal from './components/LeadModal';
 import DetalheModal from './components/DetalheModal';
 import ImportModal from './components/ImportModal';
 import SenhaModal from './components/SenhaModal';
+import Dialogo from './components/Dialogo';
 import Toast from './components/Toast';
 import { baixarArquivo, baixarCsv, hoje, proximoRetorno } from './utils';
 
@@ -25,6 +26,7 @@ export default function App() {
   const [detalhe, setDetalhe] = useState(null); // id do lead aberto
   const [importando, setImportando] = useState(false);
   const [trocandoSenha, setTrocandoSenha] = useState(false);
+  const [dialogo, setDialogo] = useState(null);
   const [toast, setToast] = useState(null);
   const [erro, setErro] = useState('');
 
@@ -33,7 +35,6 @@ export default function App() {
 
   if (!logado) return <Login onLogin={() => setLogado(true)} />;
 
-  const executar = (acao) => acao().then(carregar).catch((e) => setErro(e.message));
   // Atualiza só o que mudou, usando a resposta do servidor (sem recarregar o banco inteiro)
   const aplicar = (acao, atualizar) => acao().then(atualizar).catch((e) => setErro(e.message));
   const sair = () => { setToken(null); setLogado(false); };
@@ -59,33 +60,66 @@ export default function App() {
     aplicar(() => api.moverLead(id, colunaId), () => {});
   };
 
-  const excluirLead = (id) => {
-    if (!window.confirm('Excluir este lead?')) return;
-    setDetalhe(null);
-    aplicar(() => api.excluirLead(id), () => setDados((d) => ({ ...d, leads: d.leads.filter((l) => l.id !== id) })));
-    setToast({ texto: 'Lead excluído', acaoTexto: 'Desfazer',
-      onAcao: () => aplicar(() => api.restaurarLead(id), (lead) => setDados((d) => ({ ...d, leads: [...d.leads, lead] }))) });
-  };
+  const excluirLead = (id) => setDialogo({
+    titulo: 'Excluir lead',
+    mensagem: 'O lead sai da lista. Você pode desfazer logo em seguida.',
+    confirmarTexto: 'Excluir',
+    perigo: true,
+    onConfirmar: () => {
+      setDialogo(null);
+      setDetalhe(null);
+      aplicar(() => api.excluirLead(id), () => setDados((d) => ({ ...d, leads: d.leads.filter((l) => l.id !== id) })));
+      setToast({
+        texto: 'Lead excluído',
+        acaoTexto: 'Desfazer',
+        onAcao: () => aplicar(() => api.restaurarLead(id), (lead) => setDados((d) => ({ ...d, leads: [...d.leads, lead] }))),
+      });
+    },
+  });
 
-  const excluirContato = (id) => {
-    if (!window.confirm('Excluir este registro de contato?')) return;
-    aplicar(() => api.excluirContato(id), () => setDados((d) => ({ ...d, contatos: d.contatos.filter((c) => c.id !== id) })));
-  };
+  const excluirContato = (id) => setDialogo({
+    titulo: 'Excluir registro',
+    mensagem: 'Este registro de contato será removido.',
+    confirmarTexto: 'Excluir',
+    perigo: true,
+    onConfirmar: () => {
+      setDialogo(null);
+      aplicar(() => api.excluirContato(id), () => setDados((d) => ({ ...d, contatos: d.contatos.filter((c) => c.id !== id) })));
+    },
+  });
 
-  const novaColuna = () => {
-    const nome = window.prompt('Nome da nova coluna:');
-    if (nome?.trim()) aplicar(() => api.criarColuna(nome.trim()), (c) => setDados((d) => ({ ...d, colunas: [...d.colunas, c] })));
-  };
+  const excluirVarios = (ids) => setDialogo({
+    titulo: `Excluir ${ids.length} lead(s)`,
+    mensagem: 'Os leads selecionados saem da lista. Você pode desfazer logo em seguida.',
+    confirmarTexto: 'Excluir',
+    perigo: true,
+    onConfirmar: () => {
+      setDialogo(null);
+      aplicar(() => api.excluirVarios(ids), () => setDados((d) => ({ ...d, leads: d.leads.filter((l) => !ids.includes(l.id)) })));
+      setToast({
+        texto: `${ids.length} leads excluídos`,
+        acaoTexto: 'Desfazer',
+        onAcao: () => aplicar(() => api.restaurarVarios(ids), (restaurados) => setDados((d) => ({ ...d, leads: [...d.leads, ...restaurados] }))),
+      });
+    },
+  });
 
+  const novaColuna = () => setDialogo({
+    titulo: 'Nova coluna',
+    confirmarTexto: 'Criar',
+    campo: { placeholder: 'Nome da coluna', obrigatorio: true },
+    onConfirmar: (nome) => {
+      setDialogo(null);
+      aplicar(() => api.criarColuna(nome), (c) => setDados((d) => ({ ...d, colunas: [...d.colunas, c] })));
+    },
+  });
+
+  // Erros são lançados para o modal, que mostra a mensagem dentro da própria janela
   const importar = async (p) => {
-    try {
-      const r = await api.criarLista(p);
-      setImportando(false);
-      setToast({ texto: `${r.importados} leads importados · ${r.duplicados} duplicados ignorados` });
-      carregar();
-    } catch (e) {
-      setErro(e.message);
-    }
+    const r = await api.criarLista(p);
+    setImportando(false);
+    setToast({ texto: `${r.importados} leads importados · ${r.duplicados} duplicados ignorados` });
+    carregar();
   };
 
   const backup = async () => {
@@ -129,7 +163,7 @@ export default function App() {
             onMover={moverLead} onDetalhe={(l) => setDetalhe(l.id)} onExcluir={excluirLead} />
         )}
         {aba === 'tabela' && (
-          <Tabela leads={leads} listas={dados.listas} colunas={dados.colunas} onDetalhe={(l) => setDetalhe(l.id)} />
+          <Tabela leads={leads} listas={dados.listas} colunas={dados.colunas} onDetalhe={(l) => setDetalhe(l.id)} onExcluirVarios={excluirVarios} />
         )}
         {aba === 'dashboard' && (
           <Dashboard leads={comRetorno} listas={dados.listas} colunas={dados.colunas} />
@@ -150,11 +184,19 @@ export default function App() {
       {edicao && (
         <LeadModal lead={edicao} listas={dados.listas} colunas={dados.colunas}
           listaPadrao={filtros.listaId !== 'todas' ? filtros.listaId : dados.listas[0]?.id}
-          onSalvar={(l) => aplicar(async () => { const salvo = await api.salvarLead(l); setEdicao(null); return salvo; }, (lead) => setDados((d) => ({ ...d, leads: d.leads.some((x) => x.id === lead.id) ? d.leads.map((x) => (x.id === lead.id ? lead : x)) : [...d.leads, lead] })))}
+          onSalvar={(l) => aplicar(
+            async () => { const salvo = await api.salvarLead(l); setEdicao(null); return salvo; },
+            (lead) => setDados((d) => ({
+              ...d,
+              leads: d.leads.some((x) => x.id === lead.id)
+                ? d.leads.map((x) => (x.id === lead.id ? lead : x))
+                : [...d.leads, lead],
+            })),
+          )}
           onFechar={() => setEdicao(null)} />
       )}
 
-      {importando && <ImportModal onImportar={importar} onFechar={() => setImportando(false)} />}
+      {importando && <ImportModal onImportar={importar} leadsAtuais={dados.leads} onFechar={() => setImportando(false)} />}
 
       {trocandoSenha && (
         <SenhaModal
@@ -165,6 +207,8 @@ export default function App() {
           }}
           onFechar={() => setTrocandoSenha(false)} />
       )}
+
+      {dialogo && <Dialogo {...dialogo} onFechar={() => setDialogo(null)} />}
 
       {toast && (
         <Toast texto={toast.texto} acaoTexto={toast.acaoTexto} onAcao={toast.onAcao}

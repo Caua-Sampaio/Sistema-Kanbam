@@ -47,6 +47,7 @@ class Lead(Base):
     bairro: Mapped[str] = mapped_column(String(80), default="")
     nicho: Mapped[str] = mapped_column(String(60), default="")
     origem: Mapped[str] = mapped_column(String(60), default="")
+    site: Mapped[str] = mapped_column(String(200), default="")
     excluido_em: Mapped[str | None] = mapped_column(String(25), nullable=True)  # exclusão lógica (permite desfazer)
 
 

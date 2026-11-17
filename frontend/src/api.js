@@ -3,6 +3,17 @@ const BASE = '/api';
 export const getToken = () => localStorage.getItem('token');
 export const setToken = (t) => (t ? localStorage.setItem('token', t) : localStorage.removeItem('token'));
 
+// Converte o erro do FastAPI em texto legível (inclui erros de validação por campo)
+function mensagemErro(err, status) {
+  if (typeof err.detail === 'string') return err.detail;
+  if (Array.isArray(err.detail)) {
+    return err.detail.slice(0, 3)
+      .map((d) => `${d.loc?.slice(-1)[0] ?? 'campo'}: ${d.msg}`)
+      .join(' · ');
+  }
+  return `Erro ${status}`;
+}
+
 async function req(path, { method = 'GET', body, form } = {}) {
   const headers = {};
   const token = getToken();
@@ -13,7 +24,12 @@ async function req(path, { method = 'GET', body, form } = {}) {
     headers['Content-Type'] = 'application/json';
     payload = JSON.stringify(body);
   }
-  const res = await fetch(BASE + path, { method, headers, body: payload });
+  let res;
+  try {
+    res = await fetch(BASE + path, { method, headers, body: payload });
+  } catch {
+    throw new Error('Não foi possível conectar ao servidor. Confira se o back-end está rodando.');
+  }
   if (res.status === 401 && !path.startsWith('/auth')) {
     setToken(null);
     window.location.reload();
@@ -21,7 +37,7 @@ async function req(path, { method = 'GET', body, form } = {}) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(typeof err.detail === 'string' ? err.detail : `Erro ${res.status}`);
+    throw new Error(mensagemErro(err, res.status));
   }
   return res.status === 204 ? null : res.json();
 }
@@ -38,6 +54,7 @@ const paraApi = (l) => ({
   bairro: l.bairro ?? '',
   nicho: l.nicho ?? '',
   origem: l.origem ?? '',
+  site: l.site ?? '',
   coluna_id: l.colunaId ?? 'prospectado',
   lista_id: l.listaId ?? null,
 });
@@ -53,6 +70,8 @@ export const api = {
   moverLead: (id, colunaId) => req(`/leads/${id}/coluna?coluna_id=${encodeURIComponent(colunaId)}`, { method: 'PATCH' }),
   excluirLead: (id) => req(`/leads/${id}`, { method: 'DELETE' }),
   restaurarLead: (id) => req(`/leads/${id}/restaurar`, { method: 'POST' }),
+  excluirVarios: (ids) => req('/leads/excluir-em-lote', { method: 'POST', body: { ids } }),
+  restaurarVarios: (ids) => req('/leads/restaurar-em-lote', { method: 'POST', body: { ids } }),
   criarContato: (leadId, nota, proximo) =>
     req(`/leads/${leadId}/contatos`, { method: 'POST', body: { nota, proximo_contato: proximo || null } }),
   editarContato: (id, nota, proximo) =>

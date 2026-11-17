@@ -74,3 +74,20 @@ def test_placeholder_nao_gera_duplicado(client):
     r = importar(client, h, linhas)
     assert r.json()["importados"] == 5
     assert r.json()["duplicados"] == 0
+
+
+def test_site_do_lead_e_salvo(client):
+    h = token(client)
+    importar(client, h, [LEAD("Com Site", "(15) 95555-0001", site="https://clinica.com.br")])
+    lead = client.get("/api/dados", headers=h).json()["leads"][0]
+    assert lead["site"] == "https://clinica.com.br"
+
+
+def test_exclusao_e_restauracao_em_lote(client):
+    h = token(client)
+    importar(client, h, [LEAD("P", "(15) 91111-0001"), LEAD("Q", "(15) 91111-0002"), LEAD("R", "(15) 91111-0003")])
+    ids = [l["id"] for l in client.get("/api/dados", headers=h).json()["leads"][:2]]
+    assert client.post("/api/leads/excluir-em-lote", json={"ids": ids}, headers=h).json()["excluidos"] == 2
+    assert len(client.get("/api/dados", headers=h).json()["leads"]) == 1
+    assert len(client.post("/api/leads/restaurar-em-lote", json={"ids": ids}, headers=h).json()) == 2
+    assert len(client.get("/api/dados", headers=h).json()["leads"]) == 3
