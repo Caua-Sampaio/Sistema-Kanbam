@@ -1,4 +1,4 @@
-const STATUS = ['Sem site', 'Possui site', 'Em construção'];
+const STATUS = ['Sem site', 'Possui site', 'Em construção', 'Não verificado'];
 const INP = 'rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none';
 
 export default function Filtros({ filtros, setFiltros, total }) {

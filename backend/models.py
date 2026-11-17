@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from database import Base
 
@@ -47,7 +47,8 @@ class Lead(Base):
     bairro: Mapped[str] = mapped_column(String(80), default="")
     nicho: Mapped[str] = mapped_column(String(60), default="")
     origem: Mapped[str] = mapped_column(String(60), default="")
-    site: Mapped[str] = mapped_column(String(200), default="")
+    site: Mapped[str] = mapped_column(Text, default="")
+    nota: Mapped[float | None] = mapped_column(Float, nullable=True)
     excluido_em: Mapped[str | None] = mapped_column(String(25), nullable=True)  # exclusão lógica (permite desfazer)
 
 

@@ -91,3 +91,18 @@ def test_exclusao_e_restauracao_em_lote(client):
     assert len(client.get("/api/dados", headers=h).json()["leads"]) == 1
     assert len(client.post("/api/leads/restaurar-em-lote", json={"ids": ids}, headers=h).json()) == 2
     assert len(client.get("/api/dados", headers=h).json()["leads"]) == 3
+
+
+def test_nota_e_salva(client):
+    h = token(client)
+    importar(client, h, [{"empresa": "Com Nota", "telefone": "(15) 94444-0001", "nota": 4.8, "avaliacoes": 120}])
+    lead = client.get("/api/dados", headers=h).json()["leads"][0]
+    assert lead["nota"] == 4.8
+    assert lead["avaliacoes"] == 120
+
+
+def test_link_do_site_longo_e_aceito(client):
+    h = token(client)
+    url = "https://www.google.com/maps/place/" + "x" * 300
+    importar(client, h, [LEAD("Longo", "(15) 93333-0001", site=url)])
+    assert client.get("/api/dados", headers=h).json()["leads"][0]["site"] == url

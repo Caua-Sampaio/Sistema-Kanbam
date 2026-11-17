@@ -65,7 +65,7 @@ export default function DetalheModal({ lead, contatos, listas, colunas, onNota, 
       <div className="mb-4 space-y-1 text-xs text-slate-400">
         <p><span className="text-slate-300">Dono(a):</span> {lead.dono || '—'} · <span className="text-slate-300">Horário:</span> {lead.horario || '—'}</p>
         <p><span className="text-slate-300">Telefone:</span> {lead.telefone || '—'} · <span className="text-slate-300">Instagram:</span> {lead.instagram || '—'}</p>
-        <p><span className="text-slate-300">Avaliações:</span> {lead.avaliacoes} · <span className="text-slate-300">Site:</span> {lead.statusSite}</p>
+        <p><span className="text-slate-300">Avaliações:</span> {lead.nota != null ? `${lead.nota.toFixed(1)} ★ · ` : ''}{lead.avaliacoes} · <span className="text-slate-300">Site:</span> {lead.statusSite}</p>
         <p><span className="text-slate-300">Bairro:</span> {lead.bairro || '—'} · <span className="text-slate-300">Nicho:</span> {lead.nicho || '—'} · <span className="text-slate-300">Origem:</span> {lead.origem || '—'}</p>
         {lead.site && (
           <p><span className="text-slate-300">Site:</span>{" "}

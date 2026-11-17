@@ -5,26 +5,26 @@ const INP = 'w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 te
 const LBL = 'mb-1 block text-xs font-semibold text-slate-400';
 const BTN = 'rounded-xl bg-indigo-600 px-4 py-2 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50';
 const GHOST = 'rounded-xl bg-slate-800 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700';
-const STATUS = ['Sem site', 'Possui site', 'Em construção'];
+const STATUS = ['Sem site', 'Possui site', 'Em construção', 'Não verificado'];
 
 export default function LeadModal({ lead, listas, colunas, listaPadrao, onSalvar, onFechar }) {
   const [f, setF] = useState({
     empresa: '', dono: '', avaliacoes: 0, horario: '', telefone: '', instagram: '',
-    bairro: '', nicho: '', origem: '', site: '', statusSite: 'Sem site',
+    bairro: '', nicho: '', origem: '', site: '', nota: '', statusSite: 'Sem site',
     colunaId: colunas[0]?.id, listaId: listaPadrao, ...lead,
   });
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
-  const campos = [['empresa', 'Empresa'], ['dono', 'Dono(a)'], ['avaliacoes', 'Avaliações', 'number'],
+  const campos = [['empresa', 'Empresa'], ['dono', 'Dono(a)'], ['avaliacoes', 'Avaliações', 'number'], ['nota', 'Nota (0 a 5)', 'number'],
     ['horario', 'Horário'], ['telefone', 'Telefone'], ['instagram', 'Instagram'],
     ['bairro', 'Bairro'], ['nicho', 'Nicho'], ['origem', 'Origem (de onde veio)'], ['site', 'Link do site (se tiver)']];
 
   return (
     <Shell titulo={lead.id ? 'Editar lead' : 'Novo lead'} onFechar={onFechar}>
-      <form className="grid grid-cols-2 gap-4" onSubmit={(e) => { e.preventDefault(); onSalvar({ ...f, avaliacoes: Number(f.avaliacoes) || 0 }); }}>
+      <form className="grid grid-cols-2 gap-4" onSubmit={(e) => { e.preventDefault(); onSalvar({ ...f, avaliacoes: Number(f.avaliacoes) || 0, nota: f.nota === '' || f.nota == null ? null : Number(f.nota) }); }}>
         {campos.map(([k, label, type]) => (
           <div key={k} className={k === 'empresa' ? 'col-span-2' : ''}>
             <label className={LBL}>{label}</label>
-            <input type={type || 'text'} required={k === 'empresa'} className={INP} value={f[k] ?? ''} onChange={set(k)} />
+            <input type={type || 'text'} required={k === 'empresa'} step={k === 'nota' ? '0.1' : undefined} min={type === 'number' ? 0 : undefined} max={k === 'nota' ? 5 : undefined} className={INP} value={f[k] ?? ''} onChange={set(k)} />
           </div>
         ))}
         <div>

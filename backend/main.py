@@ -32,6 +32,7 @@ COLUNAS_NOVAS_LEADS = [
     ("nicho", "VARCHAR(60) DEFAULT ''"),
     ("origem", "VARCHAR(60) DEFAULT ''"),
     ("site", "VARCHAR(200) DEFAULT ''"),
+    ("nota", "REAL"),
     ("excluido_em", "VARCHAR(25)"),
 ]
 
@@ -69,7 +70,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-StatusSite = Literal["Sem site", "Possui site", "Em construção"]
+StatusSite = Literal["Sem site", "Possui site", "Em construção", "Não verificado"]
 
 
 class LeadIn(BaseModel):
@@ -83,7 +84,8 @@ class LeadIn(BaseModel):
     bairro: str = Field("", max_length=80)
     nicho: str = Field("", max_length=60)
     origem: str = Field("", max_length=60)
-    site: str = Field("", max_length=200)
+    site: str = Field("", max_length=2000)
+    nota: float | None = Field(None, ge=0, le=5)
     coluna_id: str = "prospectado"
     lista_id: str | None = None
 
@@ -138,7 +140,7 @@ def lead_out(l: Lead) -> dict:
     return {"id": l.id, "listaId": l.lista_id, "colunaId": l.coluna_id, "empresa": l.empresa,
             "dono": l.dono, "avaliacoes": l.avaliacoes, "horario": l.horario,
             "telefone": l.telefone, "instagram": l.instagram, "statusSite": l.status_site,
-            "bairro": l.bairro, "nicho": l.nicho, "origem": l.origem, "site": l.site}
+            "bairro": l.bairro, "nicho": l.nicho, "origem": l.origem, "site": l.site, "nota": l.nota}
 
 
 def contato_out(c: Contato) -> dict:
@@ -152,7 +154,7 @@ def campos_lead(p: LeadIn, db: Session, lista_id: str) -> dict:
     return {"lista_id": lista_id, "coluna_id": p.coluna_id, "empresa": p.empresa, "dono": limpo(p.dono),
             "avaliacoes": p.avaliacoes, "horario": limpo(p.horario), "telefone": limpo(p.telefone),
             "instagram": limpo(p.instagram), "status_site": p.status_site,
-            "bairro": limpo(p.bairro), "nicho": limpo(p.nicho), "origem": limpo(p.origem), "site": limpo(p.site)}
+            "bairro": limpo(p.bairro), "nicho": limpo(p.nicho), "origem": limpo(p.origem), "site": limpo(p.site), "nota": p.nota}
 
 
 def lead_ativo(db: Session, lead_id: str) -> Lead:

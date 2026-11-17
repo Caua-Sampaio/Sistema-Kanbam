@@ -55,6 +55,7 @@ const paraApi = (l) => ({
   nicho: l.nicho ?? '',
   origem: l.origem ?? '',
   site: l.site ?? '',
+  nota: l.nota ?? null,
   coluna_id: l.colunaId ?? 'prospectado',
   lista_id: l.listaId ?? null,
 });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analisarCsv, csvParaLeads, extrairAvaliacoes, limparHorario, parseCsv, parsearLinhas } from '../src/csvParser.js';
+import { analisarCsv, csvParaLeads, extrairAvaliacoes, extrairNota, limparHorario, parseCsv, parsearLinhas } from '../src/csvParser.js';
 
 test('parseCsv respeita aspas e separador ;', () => {
   assert.deepEqual(parseCsv('a;"b;c";d\n1;2;3\n'), [['a', 'b;c', 'd'], ['1', '2', '3']]);
@@ -111,4 +111,31 @@ test('analisarCsv corta campos acima do limite do back-end e avisa', () => {
   const { leads, avisos } = analisarCsv('Empresa;Bairro\n' + longo + ';Centro\n');
   assert.equal(leads[0].empresa.length, 160);
   assert.ok(avisos.some((a) => a.tipo === 'aviso' && a.mensagem.includes('Empresa')));
+});
+
+test('extrairNota aceita nota com vírgula ou ponto até 5', () => {
+  assert.equal(extrairNota('5,0'), 5);
+  assert.equal(extrairNota('4.8'), 4.8);
+  assert.equal(extrairNota('5,0 (468)'), 5);
+  assert.equal(extrairNota('276'), null);
+  assert.equal(extrairNota('7,0'), null);
+});
+
+test('analisarCsv aceita nota sozinha sem aviso e grava a nota', () => {
+  const { leads, avisos } = analisarCsv('Empresa;Avaliações\nLoja;5,0\n');
+  assert.equal(leads[0].nota, 5);
+  assert.equal(avisos.filter((a) => a.tipo === 'aviso').length, 0);
+});
+
+test('status "Não verificado" é reconhecido sem aviso', () => {
+  const { leads, avisos } = analisarCsv('Empresa;Status do site\nLoja;Não verificado\n');
+  assert.equal(leads[0].statusSite, 'Não verificado');
+  assert.equal(avisos.filter((a) => a.tipo === 'aviso').length, 0);
+});
+
+test('link do site com mais de 200 caracteres é mantido inteiro', () => {
+  const url = 'https://www.google.com/maps/place/' + 'x'.repeat(260);
+  const { leads, avisos } = analisarCsv('Empresa;Link do site\nLoja;' + url + '\n');
+  assert.equal(leads[0].site, url);
+  assert.equal(avisos.filter((a) => a.mensagem.includes('cortado')).length, 0);
 });

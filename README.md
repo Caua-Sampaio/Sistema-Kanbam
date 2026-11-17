@@ -74,10 +74,10 @@ Todos os comandos desta seção devem ser executados **dentro da pasta `backend`
 
 ```bash
 cd backend
-py -3.12 -m venv .venv                 # Linux/macOS: python3.12 -m venv .venv
-source .venv/Scripts/activate          # Linux/macOS: source .venv/bin/activate
+py -3.12 -m venv .venv                 
+source .venv/Scripts/activate         
 python -m pip install -r requirements.txt
-cp .env.example .env                   # depois, edite SECRET_KEY e ADMIN_PASSWORD
+cp .env.example .env                   
 uvicorn main:app --reload
 ```
 
@@ -138,8 +138,8 @@ Regras de leitura:
 - **Separador:** `;`, `,` ou tabulação. O sistema detecta automaticamente.
 - **Avaliações:** aceita o total (`276`) ou o texto copiado do Maps (`5,0 (276)`). Apenas o total é gravado.
 - **Horário:** telefone e status (`Aberto`, `Fechado`) colados junto são removidos automaticamente.
-- **Status do site:** `Sem site`, `Possui site` ou `Em construção`. Outros valores geram aviso e são gravados como `Sem site`.
-- **Limites de tamanho:** Empresa (160 caracteres), Bairro (80), Nicho (60), Origem (60) e Link do site (200). Textos maiores são cortados e geram aviso.
+- **Status do site:** `Sem site`, `Possui site`, `Em construção` ou `Não verificado`. Outros valores geram aviso e são gravados como `Sem site`.
+- **Limites de tamanho:** Empresa (160 caracteres), Bairro (80), Nicho (60), Origem (60) e Link do site (2.000). Textos maiores são cortados e geram aviso.
 - **Colunas desconhecidas:** são ignoradas e informadas na análise.
 - **XLSX:** lido pela primeira planilha.
 

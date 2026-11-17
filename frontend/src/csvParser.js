@@ -3,7 +3,7 @@ const MODELO =
   'Empresa;Dono(a);Avaliações;Horário;Telefone;Instagram;Status do site;Bairro;Nicho;Origem;Site\n' +
   'Clínica Exemplo;Dra. Ana;120;Seg-Sex 9h-18h;(15) 99999-0000;@clinicaexemplo;Sem site;Campolim;Estética;Instagram;\n';
 
-const STATUS = ['Sem site', 'Possui site', 'Em construção'];
+const STATUS = ['Sem site', 'Possui site', 'Em construção', 'Não verificado'];
 const PLACEHOLDERS = ['não encontrado', 'nao encontrado', 'não informado', 'nao informado', 'n/a', '-', '—'];
 
 // Textos de preenchimento viram campo vazio
@@ -32,7 +32,7 @@ const LIMITES = {
   bairro: [80, 'Bairro'],
   nicho: [60, 'Nicho'],
   origem: [60, 'Origem'],
-  site: [200, 'Link do site'],
+  site: [2000, 'Link do site'],
 };
 
 // Pega só o total de avaliações. Aceita "468", "5,0 (468)" e "4.8/5 (120 avaliações)".
@@ -41,6 +41,14 @@ export function extrairAvaliacoes(texto) {
   const entreParenteses = t.match(/\(\s*([\d.]+)\s*(?:avalia\S*)?\s*\)/i);
   if (entreParenteses) return Number(entreParenteses[1].replace(/\D/g, '')) || 0;
   return /^[\d.\s]+$/.test(t) ? Number(t.replace(/\D/g, '')) || 0 : 0;
+}
+
+// Nota de 0 a 5 com casa decimal (ex.: "5,0", "4.8"). Números inteiros são tratados como total.
+export function extrairNota(texto) {
+  const m = (texto || '').trim().match(/^(\d+(?:[.,]\d+)?)/);
+  if (!m) return null;
+  const n = Number(m[1].replace(',', '.'));
+  return /[.,]/.test(m[1]) && n >= 0 && n <= 5 ? n : null;
 }
 
 // Remove telefone e o status "Aberto/Fechado" que vêm colados no texto copiado do Maps
@@ -142,7 +150,8 @@ export function analisarCsv(texto) {
 
     const avaliacoesBruto = get('avaliacoes');
     const avaliacoes = extrairAvaliacoes(avaliacoesBruto);
-    if (avaliacoesBruto && avaliacoes === 0) {
+    const nota = extrairNota(avaliacoesBruto);
+    if (avaliacoesBruto && avaliacoes === 0 && nota === null) {
       avisos.push({ linha, tipo: 'aviso', mensagem: `Avaliações "${avaliacoesBruto}" não reconhecidas. Será usado 0.` });
     }
 
@@ -158,6 +167,7 @@ export function analisarCsv(texto) {
       bairro: get('bairro'),
       nicho: get('nicho'),
       origem: get('origem'),
+      nota,
     });
     const atual = leads[leads.length - 1];
     for (const [campo, [max, rotulo]] of Object.entries(LIMITES)) {

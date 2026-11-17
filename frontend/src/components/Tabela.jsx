@@ -79,7 +79,7 @@ export default function Tabela({ leads, listas, colunas, onDetalhe, onExcluirVar
                     ) : (l.telefone || '—')}
                   </td>
                   <td className="whitespace-nowrap p-3 text-indigo-400">{l.instagram || '—'}</td>
-                  <td className="p-3 text-amber-400">{l.avaliacoes}</td>
+                  <td className="whitespace-nowrap p-3 text-amber-400">{l.nota != null ? `${l.nota.toFixed(1)} ★ · ` : ''}{l.avaliacoes}</td>
                   <td className="whitespace-nowrap p-3">{l.bairro || '—'}</td>
                   <td className="whitespace-nowrap p-3">{l.nicho || '—'}</td>
                   <td className="whitespace-nowrap p-3">{l.origem || '—'}</td>

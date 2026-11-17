@@ -4,6 +4,7 @@ const CORES = {
   'Sem site': 'bg-red-500/15 text-red-300',
   'Possui site': 'bg-emerald-500/15 text-emerald-300',
   'Em construção': 'bg-amber-500/15 text-amber-300',
+  'Não verificado': 'bg-slate-500/20 text-slate-300',
 };
 
 export default function Kanban({ colunas, leads, listas, onMover, onDetalhe, onExcluir }) {
